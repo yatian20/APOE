@@ -1,0 +1,110 @@
+assessPOE <- function(Y,gmm,gcc,X,test.locus,hap,f,method,inter){
+  X <- as.matrix(X)
+  if(method == 'ROB-HAP'){ #data without NA or delete
+    gmmcc <- cbind(gmm,gcc)
+    keep <- !apply(is.na(gmmcc) , 1, any)
+    Xt <- as.matrix(X[keep,])
+    Yt <- Y[keep]
+    gmmt <- gmm[keep,]
+    gcct <- gcc[keep,]
+    
+    sp <- NULL
+    for(i in 1:nrow(gmmt))
+      sp <- c(sp,is.null(haplo(hap,gmmt[i,],gcct[i,])))
+    Xtt <- Xt[!sp,]
+    Ytt <- Yt[!sp]
+    gmmtt <- gmmt[!sp,]
+    gcctt <- gcct[!sp,]
+    
+    if(inter == FALSE)
+      fit <- imprinting_robhap(Ytt,gmmtt,gcctt,Xtt,test.locus,hap,f)
+    if(inter == TRUE)
+      fit <- imprinting_robhap.inter(Ytt,gmmtt,gcctt,Xtt,test.locus,hap,f)
+    return(list(est = fit$est,sd = fit$sd,est.log = fit$est.log,sd.log = fit$sd.log))
+  }
+  
+  if(method == 'ROB-HAP-EM'){ #method incorporate NA
+    keep <- is.na(gmm[,test.locus])
+    Xt <- as.matrix(X[!keep,])
+    Yt <- Y[!keep]
+    gmmt <- gmm[!keep,]
+    gcct <- gcc[!keep,]
+    
+    sp <- NULL
+    for(i in 1:nrow(gmmt))
+      sp <- c(sp,is.null(haplo.na(hap,gmmt[i,],gcct[i,])))
+    Xtt <- Xt[!sp,]
+    Ytt <- Yt[!sp]
+    gmmtt <- gmmt[!sp,]
+    gcctt <- gcct[!sp,]
+    
+    if(inter == FALSE)
+      fit <- imprinting_robhap.na(Ytt,gmmtt,gcctt,Xtt,test.locus,hap,f)
+    if(inter == TRUE)
+      fit <- imprinting_robhap.na.inter(Ytt,gmmtt,gcctt,Xtt,test.locus,hap,f)
+    return(list(est = fit$est,sd = fit$sd,est.log = fit$est.log,sd.log = fit$sd.log))
+  }
+  
+  
+  if(method == 'IND-HAP'){
+    gmmcc <- cbind(gmm,gcc)
+    keep <- !apply(is.na(gmmcc) , 1, any)
+    Xt <- as.matrix(X[keep,])
+    Yt <- Y[keep]
+    gmmt <- gmm[keep,]
+    gcct <- gcc[keep,]
+    
+    sp <- NULL
+    for(i in 1:nrow(gmmt))
+      sp <- c(sp,is.null(haplo(hap,gmmt[i,],gcct[i,])))
+    Xtt <- Xt[!sp,]
+    Ytt <- Yt[!sp]
+    gmmtt <- gmmt[!sp,]
+    gcctt <- gcct[!sp,]
+    
+    if(inter == FALSE)
+      fit <- imprinting_indhap(Ytt,gmmtt,gcctt,Xtt,test.locus,hap,f)
+    if(inter == TRUE)
+      fit <- imprinting_indhap.inter(Ytt,gmmtt,gcctt,Xtt,test.locus,hap,f)
+    return(list(est = fit$est,sd = fit$sd,est.log = fit$est.log,sd.log = fit$sd.log))
+  }
+  
+  if(method == 'IND-HAP-EM'){
+    keep <- is.na(gmm[,test.locus])
+    Xt <- as.matrix(X[!keep,])
+    Yt <- Y[!keep]
+    gmmt <- gmm[!keep,]
+    gcct <- gcc[!keep,]
+    
+    sp <- NULL
+    for(i in 1:nrow(gmmt))
+      sp <- c(sp,is.null(haplo.na(hap,gmmt[i,],gcct[i,])))
+    Xtt <- Xt[!sp,]
+    Ytt <- Yt[!sp]
+    gmmtt <- gmmt[!sp,]
+    gcctt <- gcct[!sp,]
+    
+    if(inter == FALSE)
+      fit <- imprinting_indhap.na(Ytt,gmmtt,gcctt,Xtt,test.locus,hap,f)
+    if(inter == TRUE)
+      fit <- imprinting_indhap.na.inter(Ytt,gmmtt,gcctt,Xtt,test.locus,hap,f)
+    return(list(est = fit$est,sd = fit$sd,est.log = fit$est.log,sd.log = fit$sd.log))
+  }
+}
+
+est.haplo <- function(gmm){
+  keep <- !apply(is.na(gmm),1,any)
+  gmmt <- gmm[keep,]
+  
+  library(haplo.stats)
+  gmmt2 <- geno1to2(gmmt)
+  haplo.raw <- haplo.em(gmmt2)
+  haplo.rm <- haplo.raw$haplotype[haplo.raw$hap.prob > 0.01,]
+  hapt <- matrix(as.numeric(as.matrix(haplo.rm)), nrow = nrow(haplo.rm), byrow = FALSE) - 1
+  return(hapt)
+}
+
+summary.POE <- function(EST,SD){
+  pvalue <- 2 * (1 - pnorm(abs(EST), mean = 0, sd = SD))
+  return(round(c(EST,SD,EST - 1.96*SD,EST + 1.96*SD,pvalue),3))
+}
