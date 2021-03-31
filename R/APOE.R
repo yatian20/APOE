@@ -377,12 +377,12 @@ imprinting_robhap.na <- function(Y,gmm,gcc,X,loci,hap,f){
   group2 <- apply(is.na(cbind(gmm,gcc)) , 1, any)
   X1 <- as.matrix(X[!group2,])
   Y1 <- Y[!group2]
-  gmm1 <- gmm[!group2,]
-  gcc1 <- gcc[!group2,]
+  gmm1 <- as.matrix(gmm[!group2,])
+  gcc1 <- as.matrix(gcc[!group2,])
   X2 <- as.matrix(X[group2,])
   Y2 <- Y[group2]
-  gmm2 <- gmm[group2,]
-  gcc2 <- gcc[group2,]
+  gmm2 <- as.matrix(gmm[group2,])
+  gcc2 <- as.matrix(gcc[group2,])
   
   #primary value
   F = distinguish(gmm1, gcc1, loci, hap)
@@ -397,13 +397,22 @@ imprinting_robhap.na <- function(Y,gmm,gcc,X,loci,hap,f){
   est.log = as.vector(res[,1])
   sd.log = as.vector(res[,2])
   
+  if (ncol(gmm1)>1)
+  {
   library(haplo.stats);
   gmm12 <- geno1to2(gmm1);
   haplo_raw <- haplo.em(gmm12);
   ppi_raw <- haplo_raw$hap.prob;
   n_hap_raw <- length(ppi_raw);
   hh_raw <- matrix(as.numeric(as.matrix(haplo_raw$haplotype)), n_hap_raw, K, byrow = FALSE) - 1;
-  
+  }
+  else
+  {
+    p = mean(gmm1)/2
+    ppi_raw <- c(1-p,p)
+    n_hap_raw <- length(ppi_raw);
+    hh_raw = matrix(c(0,1), n_hap_raw, K)
+  }
   # assuming true haplotypes in population
   n_hap <- dim(hap)[1];
   ind_hh <- mul_whichrow(hh_raw, hap);
