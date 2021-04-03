@@ -1,5 +1,8 @@
 assessPOE <- function(Y,gmm,gcc,X,test.locus,hap,f,method,inter){
   X <- as.matrix(X)
+  hap <- as.matrix(hap)
+  gmm <- as.matrix(gmm)
+  gcc <- as.matrix(gcc)
   if(method == 'ROB-HAP'){ #data without NA or delete
     gmmcc <- cbind(gmm,gcc)
     keep <- !apply(is.na(gmmcc) , 1, any)
@@ -11,7 +14,7 @@ assessPOE <- function(Y,gmm,gcc,X,test.locus,hap,f,method,inter){
     sp <- NULL
     for(i in 1:nrow(gmmt))
       sp <- c(sp,is.null(haplo(hap,gmmt[i,],gcct[i,])))
-    Xtt <- Xt[!sp,]
+    Xtt <- as.matrix(Xt[!sp,])
     Ytt <- Yt[!sp]
     gmmtt <- as.matrix(gmmt[!sp,])
     gcctt <- as.matrix(gcct[!sp,])
@@ -33,7 +36,7 @@ assessPOE <- function(Y,gmm,gcc,X,test.locus,hap,f,method,inter){
     sp <- NULL
     for(i in 1:nrow(gmmt))
       sp <- c(sp,is.null(haplo.na(hap,gmmt[i,],gcct[i,])))
-    Xtt <- Xt[!sp,]
+    Xtt <- as.matrix(Xt[!sp,])
     Ytt <- Yt[!sp]
     gmmtt <- as.matrix(gmmt[!sp,])
     gcctt <- as.matrix(gcct[!sp,])
@@ -57,7 +60,7 @@ assessPOE <- function(Y,gmm,gcc,X,test.locus,hap,f,method,inter){
     sp <- NULL
     for(i in 1:nrow(gmmt))
       sp <- c(sp,is.null(haplo(hap,gmmt[i,],gcct[i,])))
-    Xtt <- Xt[!sp,]
+    Xtt <- as.matrix(Xt[!sp,])
     Ytt <- Yt[!sp]
     gmmtt <- as.matrix(gmmt[!sp,])
     gcctt <- as.matrix(gcct[!sp,])
@@ -80,7 +83,7 @@ assessPOE <- function(Y,gmm,gcc,X,test.locus,hap,f,method,inter){
     for(i in 1:nrow(gmmt))
       sp <- c(sp,is.null(haplo.na(hap,gmmt[i,],gcct[i,])))
     Xtt <- as.matrix(Xt[!sp,])
-    Ytt <- as.matrix(Yt[!sp])
+    Ytt <- Yt[!sp]
     gmmtt <- as.matrix(gmmt[!sp,])
     gcctt <- as.matrix(gcct[!sp,])
     
@@ -116,35 +119,42 @@ imprinting_robhap <- function(Y,gmm,gcc,X,loci,hap,f){
   n <- n1+n0
   lambda <- n1 / (n*f) - n0 / (n * (1-f))
   K <- ncol(hap)
-  X <- as.matrix(X)
   nX <- max(1,ncol(X))
   
   #initial value
-  F = distinguish(gmm, gcc, loci, hap)
-  gm = F$gm
-  gc = F$gc
-  gcm = F$gcm
-  gcp = F$gcp
-  phi = F$phi
-  Z = design.matrix(gm,gc,gcm,gcp,X,phi)
-  fit = glm(Y ~ 0 + Z,family = binomial)
-  res = summary(fit)$coef
-  est.log = as.vector(res[,1])
-  sd.log = as.vector(res[,2])
+  F <- distinguish(gmm,gcc,loci,hap)
+  gm <- F$gm
+  gc <- F$gc
+  gcm <- F$gcm
+  gcp <- F$gcp
+  phi <- F$phi
+  Z <- design.matrix(gm,gc,gcm,gcp,X,phi)
+  fit <- glm(Y ~ 0 + Z,family = binomial)
+  res <- summary(fit)$coef
+  est.log <- as.vector(res[,1])
+  sd.log <- as.vector(res[,2])
   
-  library(haplo.stats);
-  gmm2 <- geno1to2(gmm);
-  haplo_raw <- haplo.em(gmm2);
-  ppi_raw <- haplo_raw$hap.prob;
-  n_hap_raw <- length(ppi_raw);
-  hh_raw <- matrix(as.numeric(as.matrix(haplo_raw$haplotype)), n_hap_raw, K, byrow = FALSE) - 1;
+  if(ncol(gmm) > 1){
+    library(haplo.stats)
+    gmm2 <- geno1to2(gmm)
+    haplo_raw <- haplo.em(gmm2)
+    ppi_raw <- haplo_raw$hap.prob
+    n_hap_raw <- length(ppi_raw)
+    hh_raw <- matrix(as.numeric(as.matrix(haplo_raw$haplotype)),n_hap_raw,K,byrow = FALSE) - 1
+  }
+  else{
+    p <- mean(gmm)/2
+    ppi_raw <- c(1-p,p)
+    n_hap_raw <- length(ppi_raw)
+    hh_raw <- matrix(c(0,1),n_hap_raw,K)
+  }
   
   # assuming true haplotypes in population
-  n_hap <- dim(hap)[1];
-  ind_hh <- mul_whichrow(hh_raw, hap);
-  ppi_ini <- ppi_raw[ind_hh];
-  ppi_ini <- ppi_ini/sum(ppi_ini);
-  theta0 <- mul_logitf(ppi_ini);
+  n_hap <- dim(hap)[1]
+  ind_hh <- mul_whichrow(hh_raw,hap)
+  ppi_ini <- ppi_raw[ind_hh]
+  ppi_ini <- ppi_ini/sum(ppi_ini)
+  theta0 <- mul_logitf(ppi_ini)
   beta0 <- est.log
   para0 <- c(beta0,theta0)
   
@@ -351,15 +361,15 @@ distinguish = function(gmm,gcc,loci,hap){
   return(list(gm = gm, gc = gc, gcm = gcm, gcp = gcp, phi = phi))
 }
 
-design.matrix = function(gm,gc,gcm,gcp,X,phi){
-  gcm[-which(phi==1)] = 0
-  gcp[-which(phi==1)] = 0
+design.matrix <- function(gm,gc,gcm,gcp,X,phi){
+  gcm[-which(phi==1)] <- 0
+  gcp[-which(phi==1)] <- 0
   cbind(1,gm,gc,gcm-gcp,X)
 }
 
-design.matrix2 = function(gm,gc,gcm,gcp,X,phi){
-  gcm[-which(phi==1)] = 0
-  gcp[-which(phi==1)] = 0
+design.matrix2 <- function(gm,gc,gcm,gcp,X,phi){
+  gcm[-which(phi==1)] <- 0
+  gcp[-which(phi==1)] <- 0
   cbind(1,gm,gc,gcm-gcp,X,gm * X,gc * X)
 }
 
@@ -371,10 +381,9 @@ imprinting_robhap.na <- function(Y,gmm,gcc,X,loci,hap,f){
   n <- n1+n0
   lambda <- n1 / (n*f) - n0 / (n * (1-f))
   K <- ncol(hap)
-  X <- as.matrix(X)
   nX <- max(1,ncol(X))
   
-  group2 <- apply(is.na(cbind(gmm,gcc)) , 1, any)
+  group2 <- apply(is.na(cbind(gmm,gcc)),1,any)
   X1 <- as.matrix(X[!group2,])
   Y1 <- Y[!group2]
   gmm1 <- as.matrix(gmm[!group2,])
@@ -385,40 +394,39 @@ imprinting_robhap.na <- function(Y,gmm,gcc,X,loci,hap,f){
   gcc2 <- as.matrix(gcc[group2,])
   
   #primary value
-  F = distinguish(gmm1, gcc1, loci, hap)
-  gm = F$gm
-  gc = F$gc
-  gcm = F$gcm
-  gcp = F$gcp
-  phi = F$phi
-  Z = design.matrix(gm,gc,gcm,gcp,X1,phi)
-  fit = glm(Y1 ~ 0 + Z,family = binomial)
-  res = summary(fit)$coef
-  est.log = as.vector(res[,1])
-  sd.log = as.vector(res[,2])
+  F <- distinguish(gmm1,gcc1,loci,hap)
+  gm <- F$gm
+  gc <- F$gc
+  gcm <- F$gcm
+  gcp <- F$gcp
+  phi <- F$phi
+  Z <- design.matrix(gm,gc,gcm,gcp,X1,phi)
+  fit <- glm(Y1 ~ 0 + Z,family = binomial)
+  res <- summary(fit)$coef
+  est.log <- as.vector(res[,1])
+  sd.log <- as.vector(res[,2])
   
-  if (ncol(gmm1)>1)
-  {
-  library(haplo.stats);
-  gmm12 <- geno1to2(gmm1);
-  haplo_raw <- haplo.em(gmm12);
-  ppi_raw <- haplo_raw$hap.prob;
-  n_hap_raw <- length(ppi_raw);
-  hh_raw <- matrix(as.numeric(as.matrix(haplo_raw$haplotype)), n_hap_raw, K, byrow = FALSE) - 1;
+  if(ncol(gmm1)>1){
+    library(haplo.stats)
+    gmm12 <- geno1to2(gmm1)
+    haplo_raw <- haplo.em(gmm12)
+    ppi_raw <- haplo_raw$hap.prob
+    n_hap_raw <- length(ppi_raw)
+    hh_raw <- matrix(as.numeric(as.matrix(haplo_raw$haplotype)),n_hap_raw,K,byrow = FALSE) - 1
   }
-  else
-  {
-    p = mean(gmm1)/2
+  else{
+    p <- mean(gmm1)/2
     ppi_raw <- c(1-p,p)
-    n_hap_raw <- length(ppi_raw);
-    hh_raw = matrix(c(0,1), n_hap_raw, K)
+    n_hap_raw <- length(ppi_raw)
+    hh_raw <- matrix(c(0,1),n_hap_raw,K)
   }
+  
   # assuming true haplotypes in population
-  n_hap <- dim(hap)[1];
-  ind_hh <- mul_whichrow(hh_raw, hap);
-  ppi_ini <- ppi_raw[ind_hh];
-  ppi_ini <- ppi_ini/sum(ppi_ini);
-  theta0 <- mul_logitf(ppi_ini);
+  n_hap <- dim(hap)[1]
+  ind_hh <- mul_whichrow(hh_raw,hap)
+  ppi_ini <- ppi_raw[ind_hh]
+  ppi_ini <- ppi_ini/sum(ppi_ini)
+  theta0 <- mul_logitf(ppi_ini)
   beta0 <- est.log
   para0 <- c(beta0,theta0)
   
@@ -540,36 +548,43 @@ imprinting_indhap <- function(Y,gmm,gcc,X,loci,hap,f){
   n0 <- sum(Y == 0)
   n <- n1+n0
   lambda <- n1 / (n*f) - n0 / (n * (1-f))
-  X <- as.matrix(X)
   K <- ncol(hap)
   nX <- max(1,ncol(X))
   
   #primary value
-  F = distinguish(gmm, gcc, loci, hap)
-  gm = F$gm
-  gc = F$gc
-  gcm = F$gcm
-  gcp = F$gcp
-  phi = F$phi
-  Z = design.matrix(gm,gc,gcm,gcp,X,phi)
-  fit = glm(Y ~ 0 + Z,family = binomial)
-  res = summary(fit)$coef
-  est.log = as.vector(res[,1])
-  sd.log = as.vector(res[,2])
+  F <- distinguish(gmm,gcc,loci,hap)
+  gm <- F$gm
+  gc <- F$gc
+  gcm <- F$gcm
+  gcp <- F$gcp
+  phi <- F$phi
+  Z <- design.matrix(gm,gc,gcm,gcp,X,phi)
+  fit <- glm(Y ~ 0 + Z,family = binomial)
+  res <- summary(fit)$coef
+  est.log <- as.vector(res[,1])
+  sd.log <- as.vector(res[,2])
   
-  library(haplo.stats);
-  gmm2 <- geno1to2(gmm);
-  haplo_raw <- haplo.em(gmm2);
-  ppi_raw <- haplo_raw$hap.prob;
-  n_hap_raw <- length(ppi_raw);
-  hh_raw <- matrix(as.numeric(as.matrix(haplo_raw$haplotype)), n_hap_raw, K, byrow = FALSE) - 1;
+  if(ncol(gmm) > 1){
+    library(haplo.stats)
+    gmm2 <- geno1to2(gmm)
+    haplo_raw <- haplo.em(gmm2)
+    ppi_raw <- haplo_raw$hap.prob
+    n_hap_raw <- length(ppi_raw)
+    hh_raw <- matrix(as.numeric(as.matrix(haplo_raw$haplotype)),n_hap_raw,K,byrow = FALSE) - 1
+  }
+  else{
+    p <- mean(gmm)/2
+    ppi_raw <- c(1-p,p)
+    n_hap_raw <- length(ppi_raw)
+    hh_raw <- matrix(c(0,1),n_hap_raw,K)
+  }
   
   # assuming true haplotypes in population
-  n_hap <- dim(hap)[1];
-  ind_hh <- mul_whichrow(hh_raw, hap);
-  ppi_ini <- ppi_raw[ind_hh];
-  ppi_ini <- ppi_ini/sum(ppi_ini);
-  theta0 <- mul_logitf(ppi_ini);
+  n_hap <- dim(hap)[1]
+  ind_hh <- mul_whichrow(hh_raw,hap)
+  ppi_ini <- ppi_raw[ind_hh]
+  ppi_ini <- ppi_ini/sum(ppi_ini)
+  theta0 <- mul_logitf(ppi_ini)
   beta0 <- est.log
   para0 <- c(beta0,theta0)
   
@@ -667,45 +682,52 @@ imprinting_indhap.na <- function(Y,gmm,gcc,X,loci,hap,f){
   n <- n1+n0
   lambda <- n1 / (n*f) - n0 / (n * (1-f))
   K <- ncol(hap)
-  X <- as.matrix(X)
   nX <- max(1,ncol(X))
   
   group2 <- apply(is.na(cbind(gmm,gcc)) , 1, any)
   X1 <- as.matrix(X[!group2,])
   Y1 <- Y[!group2]
-  gmm1 <- gmm[!group2,]
-  gcc1 <- gcc[!group2,]
+  gmm1 <- as.matrix(gmm[!group2,])
+  gcc1 <- as.matrix(gcc[!group2,])
   X2 <- as.matrix(X[group2,])
   Y2 <- Y[group2]
-  gmm2 <- gmm[group2,]
-  gcc2 <- gcc[group2,]
+  gmm2 <- as.matrix(gmm[group2,])
+  gcc2 <- as.matrix(gcc[group2,])
   
   #primary value
-  F = distinguish(gmm1, gcc1, loci, hap)
-  gm = F$gm
-  gc = F$gc
-  gcm = F$gcm
-  gcp = F$gcp
-  phi = F$phi
-  Z = design.matrix(gm,gc,gcm,gcp,X1,phi)
-  fit = glm(Y1 ~ 0 + Z,family = binomial)
-  res = summary(fit)$coef
-  est.log = as.vector(res[,1])
-  sd.log = as.vector(res[,2])
+  F <- distinguish(gmm1,gcc1,loci,hap)
+  gm <- F$gm
+  gc <- F$gc
+  gcm <- F$gcm
+  gcp <- F$gcp
+  phi <- F$phi
+  Z <- design.matrix(gm,gc,gcm,gcp,X1,phi)
+  fit <- glm(Y1 ~ 0 + Z,family = binomial)
+  res <- summary(fit)$coef
+  est.log <- as.vector(res[,1])
+  sd.log <- as.vector(res[,2])
   
-  library(haplo.stats);
-  gmm12 <- geno1to2(gmm1);
-  haplo_raw <- haplo.em(gmm12);
-  ppi_raw <- haplo_raw$hap.prob;
-  n_hap_raw <- length(ppi_raw);
-  hh_raw <- matrix(as.numeric(as.matrix(haplo_raw$haplotype)), n_hap_raw, K, byrow = FALSE) - 1;
+  if(ncol(gmm1)>1){
+    library(haplo.stats)
+    gmm12 <- geno1to2(gmm1)
+    haplo_raw <- haplo.em(gmm12)
+    ppi_raw <- haplo_raw$hap.prob
+    n_hap_raw <- length(ppi_raw)
+    hh_raw <- matrix(as.numeric(as.matrix(haplo_raw$haplotype)),n_hap_raw,K,byrow = FALSE) - 1
+  }
+  else{
+    p <- mean(gmm1)/2
+    ppi_raw <- c(1-p,p)
+    n_hap_raw <- length(ppi_raw)
+    hh_raw <- matrix(c(0,1),n_hap_raw,K)
+  }
   
   # assuming true haplotypes in population
-  n_hap <- dim(hap)[1];
-  ind_hh <- mul_whichrow(hh_raw, hap);
-  ppi_ini <- ppi_raw[ind_hh];
-  ppi_ini <- ppi_ini/sum(ppi_ini);
-  theta0 <- mul_logitf(ppi_ini);
+  n_hap <- dim(hap)[1]
+  ind_hh <- mul_whichrow(hh_raw, hap)
+  ppi_ini <- ppi_raw[ind_hh]
+  ppi_ini <- ppi_ini/sum(ppi_ini)
+  theta0 <- mul_logitf(ppi_ini)
   beta0 <- est.log
   para0 <- c(beta0,theta0)
   
@@ -790,32 +812,28 @@ likelioriginal.ind.na <- function(para,Y,X,gmm,gcc,hap,loci,f,lambda,n){
   return(res)
 }
 
-logistic <- function(x)
-{
-    return(1/(1+exp(-x)));
+logistic <- function(x){
+    return(1/(1+exp(-x)))
 }
 
-mul_logistic <- function(x)
-{
-    freq <- c(exp(x), 1);
-    freq <- freq/sum(freq);
-    return(freq);
+mul_logistic <- function(x){
+    freq <- c(exp(x), 1)
+    freq <- freq/sum(freq)
+    return(freq)
 }
 
-logitf <- function(p)
-{
-    return(log(p/(1-p)));
+logitf <- function(p){
+    return(log(p/(1-p)))
 }
 
-mul_logitf <- function(p)
-{
-    n <- length(p);
-    theta <- log(p[-n]/p[n]);
-    return(theta);  
+mul_logitf <- function(p){
+    n <- length(p)
+    theta <- log(p[-n]/p[n])
+    return(theta)
 }
 
-whichrow <- function(hh, h){
-    ind <- which(apply(hh, 1, function(x){all(x == h)}));
+whichrow <- function(hh,h){
+    ind <- which(apply(hh,1,function(x){all(x == h)}));
     if(length(ind) == 0)ind <- -1;
     return(ind);
 }
